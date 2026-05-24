@@ -1,3 +1,5 @@
+![Docker](https://github.com/jpwhite3/polyglot-ai-agents/workflows/Docker/badge.svg)
+
 # Polyglot AI Agents Workspace
 
 This repository contains Dockerfiles and build utilities to package advanced AI Coding Agents on top of the robust, developer-centric **Polyglot** base image. It enables running fully-functional autonomous AI agents with access to a rich set of developer tools, CLI runtimes, compilers, and hardware integrations.
@@ -119,3 +121,30 @@ docker run --rm polyglot-hermes:latest rustc --version
 # Check Claude CLI
 docker run --rm polyglot-hermes:latest command -v claude
 ```
+
+---
+
+## GitHub Actions CI/CD Pipeline
+
+This repository includes a pre-configured GitHub Actions workflow located in `.github/workflows/docker-publish.yml` that automates testing and publishing the agent images to **GitHub Container Registry (GHCR)**.
+
+### How it works
+1. **Pull Requests / `develop` branch**: Triggers the `test` job which builds both images (using Docker Buildx and GHA registry cache) with `push: false` to ensure changes compile successfully without publishing.
+2. **Main Branch / Version Tags (`v*`)**: Triggers the `publish` job which builds both images, authenticates with GHCR, computes the tag names, and pushes the images to `ghcr.io/jpwhite3/polyglot-hermes` and `ghcr.io/jpwhite3/polyglot-openclaw`.
+3. **Weekly Rebuilds**: Runs automatically every Monday at 6:00 AM UTC to rebuild the agent images, ensuring they inherit the latest updates from the upstream `polyglot` image.
+
+### Building in GitHub Actions (Parameterization)
+Since the `jpwhite3/polyglot:latest` base image exists locally on your machine but is published as `ghcr.io/jpwhite3/polyglot:latest` in GitHub Container Registry, the Dockerfiles parameterize the base image with a build argument:
+
+```dockerfile
+ARG BASE_IMAGE=jpwhite3/polyglot:latest
+FROM ${BASE_IMAGE} AS final
+```
+
+During local builds, this defaults to the local `jpwhite3/polyglot:latest` image. During the GitHub Actions pipeline runs, the workflow passes:
+`--build-arg BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/polyglot:latest`
+to resolve the correct base image in the cloud.
+
+### Repository Secrets
+To push images successfully, make sure you configure the following secret in your GitHub repository:
+- `CR_PAT`: A GitHub Personal Access Token (PAT) with `write:packages` and `read:packages` permissions.
