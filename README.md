@@ -146,9 +146,8 @@ During local builds, this defaults to the local `jpwhite3/polyglot:latest` image
 `--build-arg BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/polyglot:latest`
 to resolve the correct base image in the cloud.
 
-### Repository Secrets
-To push images successfully, make sure the following secret is configured in the GitHub repository:
-- `CR_PAT`: A GitHub Personal Access Token (PAT) with `write:packages` and `read:packages` permissions.
+### Pipeline Authentication
+The GitHub Actions workflow automatically authenticates with GitHub Container Registry (GHCR) using the built-in, secure `GITHUB_TOKEN` provided by the runner. Because permissions are configured directly in the workflow (`packages: write`), no manual repository secrets or custom Personal Access Tokens (PAT) need to be configured.
 
 ---
 
