@@ -16,7 +16,7 @@ Additionally, this workspace installs:
 
 ## Architecture & Base Image Integration
 
-Both agents are built on top of your local **`jpwhite3/polyglot:latest`** image.
+Both agents are built on top of the **`jpwhite3/polyglot:latest`** base image.
 
 ### Developer Tools Access
 
@@ -45,19 +45,20 @@ By layering on `jpwhite3/polyglot:latest`, both agent containers have access to:
 
 ### Prerequisites
 
-Ensure you have built the base `polyglot` image locally in the `@[polyglot]` project:
+Ensure the base `polyglot` image (`jpwhite3/polyglot:latest`) is built locally or pulled from the registry:
 ```bash
-# Navigate to polyglot project directory and run:
+# To build the base image from source:
+cd ../polyglot
 make build
 ```
-Verify `jpwhite3/polyglot:latest` is present in your local image cache:
+Verify `jpwhite3/polyglot:latest` is present in the local image cache:
 ```bash
 docker images | grep jpwhite3/polyglot
 ```
 
 ### Build Instructions
 
-You can build the agent images using the provided `Makefile`:
+The agent images can be built using the provided `Makefile`:
 
 ```bash
 # Build the Hermes Agent container image (tagged polyglot-hermes:latest)
@@ -78,7 +79,7 @@ Start the Hermes Agent in an interactive terminal shell:
 ```bash
 make run-hermes
 ```
-This runs the container, mounts a persistent volume called `polyglot-hermes-data` to `/opt/data`, maps ports, and drops you into the agent entrypoint.
+This runs the container, mounts a persistent volume called `polyglot-hermes-data` to `/opt/data`, maps ports, and drops into the agent entrypoint.
 
 #### Running OpenClaw Gateway
 
@@ -134,7 +135,7 @@ This repository includes a pre-configured GitHub Actions workflow located in `.g
 3. **Weekly Rebuilds**: Runs automatically every Monday at 6:00 AM UTC to rebuild the agent images, ensuring they inherit the latest updates from the upstream `polyglot` image.
 
 ### Building in GitHub Actions (Parameterization)
-Since the `jpwhite3/polyglot:latest` base image exists locally on your machine but is published as `ghcr.io/jpwhite3/polyglot:latest` in GitHub Container Registry, the Dockerfiles parameterize the base image with a build argument:
+Since the `jpwhite3/polyglot:latest` base image exists locally during development but is published as `ghcr.io/jpwhite3/polyglot:latest` in GitHub Container Registry, the Dockerfiles parameterize the base image with a build argument:
 
 ```dockerfile
 ARG BASE_IMAGE=jpwhite3/polyglot:latest
@@ -146,5 +147,11 @@ During local builds, this defaults to the local `jpwhite3/polyglot:latest` image
 to resolve the correct base image in the cloud.
 
 ### Repository Secrets
-To push images successfully, make sure you configure the following secret in your GitHub repository:
+To push images successfully, make sure the following secret is configured in the GitHub repository:
 - `CR_PAT`: A GitHub Personal Access Token (PAT) with `write:packages` and `read:packages` permissions.
+
+---
+
+## License
+
+This project is open-source and available under the terms of the [MIT License](LICENSE).
