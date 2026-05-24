@@ -1,0 +1,121 @@
+# Polyglot AI Agents Workspace
+
+This repository contains Dockerfiles and build utilities to package advanced AI Coding Agents on top of the robust, developer-centric **Polyglot** base image. It enables running fully-functional autonomous AI agents with access to a rich set of developer tools, CLI runtimes, compilers, and hardware integrations.
+
+Two agents are supported:
+1. **Hermes Agent**: The agentic terminal/coding assistant by Nous Research (built on `NousResearch/hermes-agent`).
+2. **OpenClaw**: A TypeScript-based autonomous personal AI assistant (built on `openclaw/openclaw`).
+
+Additionally, this workspace installs:
+* **Whisper.cpp**: Compiled from source for high-performance CPU-based local audio transcription.
+* **FFmpeg**: Integrated for voice recording, processing, and formatting.
+
+---
+
+## Architecture & Base Image Integration
+
+Both agents are built on top of your local **`jpwhite3/polyglot:latest`** image.
+
+### Developer Tools Access
+
+To enforce security best practices, the containers run as non-root users:
+* **Hermes Agent** runs as `hermes` (UID `10000`).
+* **OpenClaw** runs as `node` (UID `1000`).
+
+In the original `polyglot` image, development environments (NVM, Rust/Cargo, Pipx, Claude CLI, etc.) are installed in the `/root` home directory. To make these tools accessible to the non-root agent users, both Dockerfiles:
+1. Relax directory traversal permissions inside `/root` (`chmod 755`).
+2. Retain intermediate folders (`.cargo`, `.nvm`, `.local`, `.opencode`, `.oh-my-zsh`) under `/root` with executable rights so that the agent users can locate and execute the development binaries.
+3. Inherit the `PATH` configurations pointing to `/root/.cargo/bin`, `/root/.nvm/current/bin`, `/root/.local/bin`, and `/root/.opencode/bin`.
+
+---
+
+## Included Tools Reference
+
+By layering on `jpwhite3/polyglot:latest`, both agent containers have access to:
+* **Languages**: Python (venv, Poetry, Pipenv, Pipx), Java (openjdk-headless), .NET SDK, Ruby (rbenv, gem), Go, Node (nvm, npm), Rust (rustup, rustc).
+* **CLI AI Tools**: Claude CLI, OpenCode CLI, Antigravity CLI.
+* **Media & Audio Transcription**: Whisper.cpp (`whisper-cli`, `whisper-server`), FFmpeg (`ffmpeg`).
+* **General CLI Tools**: `git`, `zsh` (Oh My Zsh integration), `curl`, `jq`, `less`, `make`, `ripgrep`, `lsof`, `procps`.
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+Ensure you have built the base `polyglot` image locally in the `@[polyglot]` project:
+```bash
+# Navigate to polyglot project directory and run:
+make build
+```
+Verify `jpwhite3/polyglot:latest` is present in your local image cache:
+```bash
+docker images | grep jpwhite3/polyglot
+```
+
+### Build Instructions
+
+You can build the agent images using the provided `Makefile`:
+
+```bash
+# Build the Hermes Agent container image (tagged polyglot-hermes:latest)
+make build-hermes
+
+# Build the OpenClaw container image (tagged polyglot-openclaw:latest)
+make build-openclaw
+
+# Build both images
+make build-all
+```
+
+### Run Instructions
+
+#### Running Hermes Agent
+
+Start the Hermes Agent in an interactive terminal shell:
+```bash
+make run-hermes
+```
+This runs the container, mounts a persistent volume called `polyglot-hermes-data` to `/opt/data`, maps ports, and drops you into the agent entrypoint.
+
+#### Running OpenClaw Gateway
+
+Start the OpenClaw Gateway server:
+```bash
+make run-openclaw
+```
+This launches the gateway, maps port `18789` for the web UI, and mounts a persistent volume `polyglot-openclaw-data` to `/home/node/.openclaw`. Access the control dashboard at:
+[http://localhost:18789](http://localhost:18789)
+
+---
+
+## Verification & Testing
+
+Verify that the binaries are properly compiled, installed, and accessible to the non-root container users:
+
+### 1. Audio Transcription & Media verification
+Check that `whisper-cli` and `ffmpeg` are available:
+```bash
+docker run --rm polyglot-hermes:latest whisper-cli --help
+docker run --rm polyglot-openclaw:latest whisper-cli --help
+docker run --rm polyglot-hermes:latest ffmpeg -version
+```
+
+### 2. Base Developer Tools verification
+Ensure language runtimes are executable:
+```bash
+# Check Python
+docker run --rm polyglot-hermes:latest python3 --version
+
+# Check Node
+docker run --rm polyglot-hermes:latest node --version
+
+# Check Go
+docker run --rm polyglot-hermes:latest go version
+
+# Check Rust
+docker run --rm polyglot-hermes:latest rustc --version
+
+# Check Claude CLI
+docker run --rm polyglot-hermes:latest command -v claude
+```

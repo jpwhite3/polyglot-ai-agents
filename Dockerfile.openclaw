@@ -1,0 +1,93 @@
+# syntax=docker/dockerfile:1.7
+
+# Stage 1: Build Whisper.cpp
+FROM ubuntu:24.04 AS whisper-builder
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends cmake build-essential git ca-certificates
+RUN git clone https://github.com/ggerganov/whisper.cpp.git /opt/whisper.cpp && \
+    cd /opt/whisper.cpp && \
+    cmake -B build -DGGML_CUDA=0 && \
+    cmake --build build --config Release && \
+    cp build/bin/whisper-cli /usr/local/bin/whisper-cli || cp build/bin/main /usr/local/bin/whisper-cli && \
+    cp build/bin/whisper-server /usr/local/bin/whisper-server || true && \
+    find build -name "*.so*" -exec cp {} /usr/local/lib/ \;
+
+# Stage 2: Final image combining polyglot and OpenClaw
+FROM jpwhite3/polyglot:latest AS final
+
+USER root
+
+# Install system runtime dependencies needed by OpenClaw
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        ffmpeg \
+        tini \
+        libffi-dev \
+        procps \
+        openssh-client \
+        ripgrep \
+        lsof \
+        xvfb
+
+# Copy Whisper.cpp binaries and libraries
+COPY --from=whisper-builder /usr/local/bin/whisper-cli /usr/local/bin/whisper-cli
+COPY --from=whisper-builder /usr/local/bin/whisper-server /usr/local/bin/whisper-server
+COPY --from=whisper-builder /usr/local/lib/ /usr/local/lib/
+RUN ldconfig
+
+# Create node user and group, removing default ubuntu user first to avoid collision
+RUN (userdel -r ubuntu || true) && \
+    (groupdel ubuntu || true) && \
+    groupadd -g 1000 node && \
+    useradd -u 1000 -g node -m -s /bin/zsh node
+
+
+# Set up app directory and copy from official OpenClaw image
+WORKDIR /app
+RUN chown -R node:node /app
+
+# Copy the built openclaw files from the official image
+COPY --from=ghcr.io/openclaw/openclaw:latest --chown=node:node /app /app
+
+# Install Playwright Chromium browser at build time
+ENV PLAYWRIGHT_BROWSERS_PATH=/home/node/.cache/ms-playwright
+RUN mkdir -p /home/node/.cache && \
+    node /app/node_modules/playwright-core/cli.js install chromium && \
+    chown -R node:node /home/node/.cache
+
+# Expose the CLI binary
+RUN ln -sf /app/openclaw.mjs /usr/local/bin/openclaw && \
+    chmod 755 /app/openclaw.mjs
+
+# Pre-create default named-volume mount points for OpenClaw
+RUN install -d -m 0700 -o node -g node \
+      /home/node/.openclaw \
+      /home/node/.openclaw/workspace \
+      /home/node/.config/openclaw
+
+# Fix permissions of the /root directory so that non-root user 'node' can run development tools
+RUN chmod 755 /root && \
+    chmod -R 755 /root/.nvm /root/.cargo /root/.local /root/.opencode /root/.oh-my-zsh 2>/dev/null || true
+
+# Set Playwright path to cached browsers
+ENV PLAYWRIGHT_BROWSERS_PATH=/home/node/.cache/ms-playwright
+ENV NODE_ENV=production
+
+# Configure Rust environment variables for non-root toolchain access
+ENV RUSTUP_HOME=/root/.rustup \
+    CARGO_HOME=/root/.cargo
+
+# Expose Gateway port (default 18789)
+EXPOSE 18789
+
+# Security hardening: Run as node user
+USER node
+
+# Health check using node fetch
+HEALTHCHECK --interval=3m --timeout=10s --start-period=15s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:18789/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
+ENTRYPOINT ["tini", "-s", "--"]
+CMD ["node", "openclaw.mjs", "gateway"]
